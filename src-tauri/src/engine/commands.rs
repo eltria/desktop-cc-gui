@@ -21,13 +21,43 @@ use tokio::process::Command;
 use tokio::time::timeout;
 
 use crate::backend::events::AppServerEvent;
+use crate::engine::claude::ClaudeSession;
 use crate::state::AppState;
 use crate::types::WorkspaceEntry;
+
+/// Resolve the effective Claude command profile for a workspace and apply it
+/// to the given session. Called on every `engine_send_message` / sync-prompt
+/// invocation so that runtime profile switches (global default or workspace
+/// override) take effect without requiring the session to be recreated.
+async fn apply_claude_profile_to_session(
+    state: &AppState,
+    manager: &EngineManager,
+    session: &ClaudeSession,
+    workspace_id: &str,
+) {
+    let app_settings = state.app_settings.lock().await.clone();
+    let override_id = {
+        let workspaces = state.workspaces.lock().await;
+        workspaces
+            .get(workspace_id)
+            .and_then(|entry| entry.settings.claude_profile_override_id.clone())
+    };
+    let resolved_bin = crate::shared::claude_profiles::resolve_claude_bin_path(
+        &app_settings,
+        override_id.as_deref(),
+    );
+    let mut cfg = manager
+        .get_engine_config(EngineType::Claude)
+        .await
+        .unwrap_or_default();
+    cfg.bin_path = resolved_bin;
+    session.apply_engine_config(cfg);
+}
 
 use super::codex_prompt_service::{normalize_custom_spec_root, run_codex_prompt_sync};
 use super::events::{engine_event_to_app_server_event, EngineEvent};
 use super::status::{detect_gemini_status, detect_opencode_status};
-use super::{EngineConfig, EngineStatus, EngineType};
+use super::{EngineConfig, EngineManager, EngineStatus, EngineType};
 
 #[path = "commands_opencode_helpers.rs"]
 mod opencode_helpers;
@@ -1916,6 +1946,7 @@ pub async fn engine_send_message(
             let session = manager
                 .get_claude_session(&workspace_id, &workspace_path)
                 .await;
+            apply_claude_profile_to_session(&state, manager, &session, &workspace_id).await;
 
             let has_images = images
                 .as_ref()
@@ -2571,6 +2602,7 @@ pub async fn engine_send_message_sync(
             let session = manager
                 .get_claude_session(&workspace_id, &workspace_path)
                 .await;
+            apply_claude_profile_to_session(&state, manager, &session, &workspace_id).await;
 
             let has_images = images
                 .as_ref()

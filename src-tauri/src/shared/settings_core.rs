@@ -4,6 +4,8 @@ use std::sync::Arc;
 use tokio::sync::Mutex;
 
 use crate::codex::config as codex_config;
+use crate::engine::{EngineManager, EngineType};
+use crate::shared::claude_profiles;
 use crate::shared::proxy_core;
 use crate::storage::write_settings;
 use crate::types::AppSettings;
@@ -97,6 +99,7 @@ pub(crate) async fn update_app_settings_core(
     normalized.layout_mode = sanitize_layout_mode(&normalized.layout_mode);
     validate_ui_scale(normalized.ui_scale)?;
     proxy_core::validate_proxy_settings(&normalized)?;
+    validate_claude_profiles(&normalized)?;
     sync_codex_config_flags(&normalized);
     write_settings(settings_path, &normalized)?;
     proxy_core::apply_app_proxy_settings(&normalized)?;
@@ -104,6 +107,82 @@ pub(crate) async fn update_app_settings_core(
     *current = normalized.clone();
     Ok(normalized)
 }
+
+/// Ensure the profile list and the referenced active profile id are
+/// self-consistent before persisting.
+fn validate_claude_profiles(settings: &AppSettings) -> Result<(), String> {
+    let mut seen_ids = std::collections::HashSet::new();
+    for profile in &settings.claude_profiles {
+        if profile.id.trim().is_empty() {
+            return Err("Claude profile id must not be empty".to_string());
+        }
+        if profile.name.trim().is_empty() {
+            return Err("Claude profile name must not be empty".to_string());
+        }
+        if profile.bin_path.trim().is_empty() {
+            return Err(format!(
+                "Claude profile {:?} binPath must not be empty",
+                profile.name
+            ));
+        }
+        if !seen_ids.insert(profile.id.clone()) {
+            return Err(format!("Duplicate Claude profile id {:?}", profile.id));
+        }
+    }
+    if let Some(active_id) = settings.claude_active_profile_id.as_deref() {
+        if !settings.claude_profiles.iter().any(|p| p.id == active_id) {
+            return Err(format!(
+                "Active Claude profile id {:?} is not in claudeProfiles",
+                active_id
+            ));
+        }
+    }
+    Ok(())
+}
+
+/// Push the resolved global Claude bin_path to the engine manager. Safe to
+/// call after any mutation to `claude_profiles` or `claude_active_profile_id`.
+pub(crate) async fn propagate_claude_profile_to_engine(
+    settings: &AppSettings,
+    engine_manager: &EngineManager,
+) {
+    let bin_path = claude_profiles::resolve_claude_bin_path(settings, None);
+    let mut cfg = engine_manager
+        .get_engine_config(EngineType::Claude)
+        .await
+        .unwrap_or_default();
+    cfg.bin_path = bin_path;
+    engine_manager
+        .set_engine_config(EngineType::Claude, cfg)
+        .await;
+}
+
+/// Update the active global Claude profile id and propagate the change to the
+/// engine manager / live sessions. Used by the main-window quick switcher so
+/// the caller does not need to rewrite the whole AppSettings blob.
+pub(crate) async fn set_active_claude_profile_core(
+    profile_id: Option<String>,
+    app_settings: &Mutex<AppSettings>,
+    settings_path: &PathBuf,
+    engine_manager: &EngineManager,
+) -> Result<AppSettings, String> {
+    let mut guard = app_settings.lock().await;
+    if let Some(ref id) = profile_id {
+        if !guard.claude_profiles.iter().any(|p| &p.id == id) {
+            return Err(format!(
+                "Claude profile id {:?} does not exist in claudeProfiles",
+                id
+            ));
+        }
+    }
+    guard.claude_active_profile_id = profile_id;
+    let snapshot = guard.clone();
+    drop(guard);
+    write_settings(settings_path, &snapshot)?;
+    propagate_claude_profile_to_engine(&snapshot, engine_manager).await;
+    Ok(snapshot)
+}
+
 
 pub(crate) async fn restore_app_settings_core(
     previous: &AppSettings,

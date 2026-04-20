@@ -129,6 +129,7 @@ import { ShortcutsSection } from "./settings-view/sections/ShortcutsSection";
 import { OpenAppsSection } from "./settings-view/sections/OpenAppsSection";
 import { BasicAppearanceSection } from "./settings-view/sections/BasicAppearanceSection";
 import { CodexSection } from "./settings-view/sections/CodexSection";
+import { ClaudeSection } from "./settings-view/sections/ClaudeSection";
 import { OtherSection } from "./settings-view/sections/OtherSection";
 import { SessionManagementSection } from "./settings-view/sections/SessionManagementSection";
 import { RuntimePoolSection } from "./settings-view/sections/RuntimePoolSection";
@@ -1720,6 +1721,15 @@ export function SettingsView({
                 {!sidebarCollapsed && t("settings.sidebarCodex")}
               </button>
             )}
+            <button
+              type="button"
+              className={`settings-nav ${activeSection === "claude" ? "active" : ""}`}
+              onClick={() => setActiveSection("claude")}
+              title={sidebarCollapsed ? t("settings.sidebarClaude") : ""}
+            >
+              <TerminalSquare aria-hidden />
+              {!sidebarCollapsed && t("settings.sidebarClaude")}
+            </button>
             {SHOW_EXPERIMENTAL_ENTRY && (
               <>
                 <button
@@ -2579,6 +2589,14 @@ export function SettingsView({
               codexArgsOverrideDrafts={codexArgsOverrideDrafts}
               setCodexArgsOverrideDrafts={setCodexArgsOverrideDrafts}
               onUpdateWorkspaceCodexBin={onUpdateWorkspaceCodexBin}
+              onUpdateWorkspaceSettings={onUpdateWorkspaceSettings}
+            />
+            <ClaudeSection
+              active={activeSection === "claude"}
+              t={t}
+              appSettings={appSettings}
+              onUpdateAppSettings={onUpdateAppSettings}
+              projects={projects}
               onUpdateWorkspaceSettings={onUpdateWorkspaceSettings}
             />
             {/* about is now mapped to community above */}

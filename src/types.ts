@@ -8,6 +8,9 @@ export type WorkspaceSettings = {
   launchScript?: string | null;
   launchScripts?: LaunchScriptEntry[] | null;
   worktreeSetupScript?: string | null;
+  /** Id of the workspace-pinned Claude command profile. `null` / undefined
+   *  means the workspace inherits the global `claudeActiveProfileId`. */
+  claudeProfileOverrideId?: string | null;
 };
 
 export type LaunchScriptIconId =
@@ -171,9 +174,17 @@ export type OpenAppTarget = {
   args: string[];
 };
 
+export type ClaudeCommandProfile = {
+  id: string;
+  name: string;
+  binPath: string;
+};
+
 export type AppSettings = {
   codexBin: string | null;
   codexArgs: string | null;
+  claudeProfiles: ClaudeCommandProfile[];
+  claudeActiveProfileId: string | null;
   backendMode: BackendMode;
   remoteBackendHost: string;
   remoteBackendToken: string | null;

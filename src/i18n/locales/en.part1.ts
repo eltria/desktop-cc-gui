@@ -457,6 +457,7 @@ const enPart1 = {
     sidebarReleaseNotes: "Release Notes",
     sidebarVendors: "Vendors",
     sidebarCodex: "Codex",
+    sidebarClaude: "Claude",
     sidebarExperimental: "Experimental",
     sidebarAbout: "About",
     sidebarCommunity: "Community",
@@ -1157,6 +1158,23 @@ const enPart1 = {
         confirm: "Delete",
       },
     },
+
+    // Claude section
+    claudeTitle: "Claude",
+    claudeDescription: "Manage named Claude CLI profiles and pick which one ccgui spawns. Each profile is a path to a `claude` binary or wrapper script (e.g. for OpenAI/Anthropic-compatible endpoints).",
+    claudeProfilesLabel: "Profiles",
+    claudeProfilesHelp: "Add one entry per claude wrapper you maintain. Pick one as the default — workspaces without an override will use it.",
+    claudeProfilesEmpty: "No profiles yet. Add one to point ccgui at a custom claude binary.",
+    claudeProfileNamePlaceholder: "Display name",
+    claudeProfileBinPathPlaceholder: "/absolute/path/to/claude",
+    claudeProfileDefaultName: "New Claude profile",
+    claudeAddProfile: "Add profile",
+    claudeDeleteProfile: "Delete",
+    claudeSetActive: "Set as default",
+    claudeClearActive: "Use PATH lookup",
+    claudeUseGlobalDefault: "Use global default",
+    claudeWorkspaceOverridesLabel: "Per-workspace override",
+    claudeWorkspaceOverridesHelp: "Pin a specific profile to a workspace. Leave as \"Use global default\" to follow the active default above.",
 
     // Codex section
     codexTitle: "Codex",

@@ -10,9 +10,9 @@ use crate::codex::home::resolve_workspace_codex_home;
 use crate::event_sink::TauriEventSink;
 use crate::remote_backend;
 use crate::shared::settings_core::{
-    get_app_settings_core, get_codex_config_path_core,
+    get_app_settings_core, get_codex_config_path_core, propagate_claude_profile_to_engine,
     restart_codex_sessions_for_app_settings_change_core, restore_app_settings_core,
-    update_app_settings_core,
+    set_active_claude_profile_core, update_app_settings_core,
 };
 use crate::state::AppState;
 use crate::types::{AppSettings, WorkspaceEntry};
@@ -141,8 +141,26 @@ pub(crate) async fn update_app_settings(
             return Err(message);
         }
     }
+    // Re-propagate the resolved Claude bin path so live sessions pick up any
+    // change to the profile list or active profile id that came in with this
+    // settings update.
+    propagate_claude_profile_to_engine(&updated, &state.engine_manager).await;
     let _ = window::apply_window_appearance(&window, updated.theme.as_str());
     Ok(updated)
+}
+
+#[tauri::command]
+pub(crate) async fn set_active_claude_profile(
+    profile_id: Option<String>,
+    state: State<'_, AppState>,
+) -> Result<AppSettings, String> {
+    set_active_claude_profile_core(
+        profile_id,
+        &state.app_settings,
+        &state.settings_path,
+        &state.engine_manager,
+    )
+    .await
 }
 
 #[tauri::command]

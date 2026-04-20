@@ -469,6 +469,7 @@ const zhPart1 = {
     sidebarReleaseNotes: "版本记录",
     sidebarVendors: "供应商管理",
     sidebarCodex: "Codex",
+    sidebarClaude: "Claude",
     sidebarExperimental: "实验性功能",
     sidebarAbout: "关于",
     sidebarCommunity: "社区与反馈",
@@ -1164,6 +1165,23 @@ const zhPart1 = {
         confirm: "删除",
       },
     },
+
+    // Claude 部分
+    claudeTitle: "Claude",
+    claudeDescription: "维护多个 Claude CLI profile,每个 profile 指向一个 claude 可执行文件或封装脚本(例如对接 OpenAI / Anthropic 兼容接口)。可以设置一个为默认,或为单个 workspace 指定覆盖。",
+    claudeProfilesLabel: "Profile 列表",
+    claudeProfilesHelp: "为每个封装脚本添加一条记录,选一个设为默认;未单独覆盖的 workspace 会使用默认值。",
+    claudeProfilesEmpty: "还没有 profile。添加一条以便 ccgui 使用自定义 claude 命令。",
+    claudeProfileNamePlaceholder: "显示名称",
+    claudeProfileBinPathPlaceholder: "/绝对/路径/到/claude",
+    claudeProfileDefaultName: "新 Claude profile",
+    claudeAddProfile: "添加 profile",
+    claudeDeleteProfile: "删除",
+    claudeSetActive: "设为默认",
+    claudeClearActive: "使用 PATH 自动查找",
+    claudeUseGlobalDefault: "使用全局默认",
+    claudeWorkspaceOverridesLabel: "Workspace 覆盖",
+    claudeWorkspaceOverridesHelp: "为单个 workspace 固定一个 profile;保持“使用全局默认”则跟随上方默认选择。",
 
     // Codex 部分
     codexTitle: "Codex",

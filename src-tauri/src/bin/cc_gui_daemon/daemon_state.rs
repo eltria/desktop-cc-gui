@@ -568,11 +568,13 @@ impl DaemonState {
 
     pub(super) async fn sync_engine_configs(&self) {
         let settings = self.app_settings.lock().await.clone();
+        let claude_bin = crate::shared::claude_profiles::resolve_claude_bin_path(&settings, None)
+            .or_else(|| settings.claude_bin.clone());
         self.engine_manager
             .set_engine_config(
                 engine::EngineType::Claude,
                 engine::EngineConfig {
-                    bin_path: settings.claude_bin.clone(),
+                    bin_path: claude_bin,
                     home_dir: None,
                     custom_args: None,
                     default_model: None,
