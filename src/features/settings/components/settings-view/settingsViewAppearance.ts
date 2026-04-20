@@ -24,7 +24,12 @@ export type SettingsSection =
   | "community"
   | "vendors";
 
-export type SettingsViewSection = SettingsSection | "codex" | "experimental" | "about";
+export type SettingsViewSection =
+  | SettingsSection
+  | "codex"
+  | "claude"
+  | "experimental"
+  | "about";
 
 export const USER_MSG_DARK_PRESETS = [
   { color: "#005fb8", label: "Default" },

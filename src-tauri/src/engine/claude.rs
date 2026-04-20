@@ -91,12 +91,10 @@ pub struct ClaudeSession {
     workspace_name: String,
     /// Event broadcaster
     event_sender: broadcast::Sender<ClaudeTurnEvent>,
-    /// Custom binary path
-    bin_path: Option<String>,
-    /// Custom home directory
-    home_dir: Option<String>,
-    /// Additional CLI arguments
-    custom_args: Option<String>,
+    /// Engine configuration (bin path / home / custom args). Held behind a
+    /// `StdMutex` so it can be mutated after session creation — e.g. when the
+    /// user switches the active Claude command profile from the UI.
+    engine_config: StdMutex<EngineConfig>,
     /// Active child processes by turn ID (supports concurrent turns)
     active_processes: Mutex<HashMap<String, Child>>,
     /// Flag set by interrupt() so send_message() knows the process was killed intentionally
@@ -196,9 +194,7 @@ impl ClaudeSession {
             workspace_path,
             session_id: RwLock::new(None),
             event_sender,
-            bin_path: config.bin_path,
-            home_dir: config.home_dir,
-            custom_args: config.custom_args,
+            engine_config: StdMutex::new(config),
             active_processes: Mutex::new(HashMap::new()),
             interrupted: AtomicBool::new(false),
             disposed: AtomicBool::new(false),
@@ -297,13 +293,34 @@ impl ClaudeSession {
         *self.session_id.write().await = id;
     }
 
+    /// Snapshot the current engine config. Kept tiny on purpose — called on
+    /// every turn so we want to release the lock before spawning.
+    fn current_engine_config(&self) -> EngineConfig {
+        self.engine_config
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
+            .clone()
+    }
+
+    /// Replace the engine configuration in-place. Used when the user switches
+    /// the active Claude command profile so live sessions pick up the new
+    /// binary path on their next turn without having to be recreated.
+    pub fn apply_engine_config(&self, config: EngineConfig) {
+        let mut guard = self
+            .engine_config
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        *guard = config;
+    }
+
     /// Build the Claude CLI command
     fn build_command(&self, params: &SendMessageParams, use_stream_json_input: bool) -> Command {
+        let config = self.current_engine_config();
         // Resolve the Claude CLI binary path:
         // 1. Use custom bin_path if configured
         // 2. Otherwise use find_cli_binary() to search npm global, cargo, etc.
         // 3. Fall back to bare "claude" as last resort
-        let bin = if let Some(ref custom) = self.bin_path {
+        let bin = if let Some(ref custom) = config.bin_path {
             custom.clone()
         } else {
             crate::backend::app_server::find_cli_binary("claude", None)
@@ -401,7 +418,7 @@ impl ClaudeSession {
         }
 
         // Custom arguments
-        if let Some(ref args) = self.custom_args {
+        if let Some(ref args) = config.custom_args {
             for arg in args.split_whitespace() {
                 cmd.arg(arg);
             }
@@ -414,7 +431,7 @@ impl ClaudeSession {
         cmd.stderr(Stdio::piped());
 
         // Environment
-        if let Some(ref home) = self.home_dir {
+        if let Some(ref home) = config.home_dir {
             cmd.env("CLAUDE_HOME", home);
         }
 

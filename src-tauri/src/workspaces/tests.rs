@@ -54,6 +54,7 @@ fn workspace_with_id_and_kind(
             launch_scripts: None,
             worktree_setup_script: None,
             engine_type: None,
+            claude_profile_override_id: None,
         },
     }
 }

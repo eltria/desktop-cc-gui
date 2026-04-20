@@ -104,6 +104,8 @@ const workspaceB: WorkspaceInfo = {
 const baseSettings: AppSettings = {
   codexBin: null,
   codexArgs: null,
+  claudeProfiles: [],
+  claudeActiveProfileId: null,
   backendMode: "local",
   remoteBackendHost: "127.0.0.1:4732",
   remoteBackendToken: null,

@@ -25,9 +25,18 @@ impl ClaudeSessionManager {
             .unwrap_or_else(|poisoned| poisoned.into_inner()) = Some(runtime_manager);
     }
 
-    /// Set default configuration
+    /// Set the default configuration used when spawning new sessions, and
+    /// propagate it to every session that has already been created so that
+    /// their next turn uses the new binary / env / args.
     pub async fn set_config(&self, config: EngineConfig) {
-        *self.default_config.write().await = config;
+        *self.default_config.write().await = config.clone();
+        let live = {
+            let sessions = self.sessions.lock().await;
+            sessions.values().cloned().collect::<Vec<_>>()
+        };
+        for session in live {
+            session.apply_engine_config(config.clone());
+        }
     }
 
     /// Get or create a session for a workspace

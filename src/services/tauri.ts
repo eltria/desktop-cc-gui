@@ -1414,6 +1414,17 @@ export async function updateAppSettings(
   return invoke<AppSettings>("update_app_settings", { settings });
 }
 
+/**
+ * Update the globally-active Claude command profile id without rewriting the
+ * whole AppSettings blob. Used by the main-window quick switcher so that
+ * flipping profiles does not race with unrelated settings edits.
+ */
+export async function setActiveClaudeProfile(
+  profileId: string | null,
+): Promise<AppSettings> {
+  return invoke<AppSettings>("set_active_claude_profile", { profileId });
+}
+
 export type WebServerStatus = {
   running: boolean;
   rpcEndpoint: string;

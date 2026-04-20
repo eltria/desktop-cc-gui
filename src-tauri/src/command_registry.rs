@@ -4,6 +4,7 @@ pub(crate) fn invoke_handler(
         // Settings
         crate::settings::get_app_settings,
         crate::settings::update_app_settings,
+        crate::settings::set_active_claude_profile,
         crate::settings::get_codex_config_path,
         crate::settings::reload_codex_runtime_config,
         crate::runtime::get_runtime_pool_snapshot,

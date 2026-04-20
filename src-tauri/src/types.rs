@@ -574,6 +574,21 @@ pub(crate) struct WorkspaceSettings {
     /// Engine type for this workspace: "claude" or "codex". If not set, use app default.
     #[serde(default, rename = "engineType")]
     pub(crate) engine_type: Option<String>,
+    /// Workspace-level override for the active Claude command profile id.
+    /// `None` / absent = inherit the global `claude_active_profile_id`.
+    #[serde(default, rename = "claudeProfileOverrideId")]
+    pub(crate) claude_profile_override_id: Option<String>,
+}
+
+/// A named Claude CLI binary configuration. Users may maintain several of
+/// these for different OpenAI/Anthropic-compatible wrapper scripts and switch
+/// between them at runtime.
+#[derive(Debug, Serialize, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct ClaudeCommandProfile {
+    pub(crate) id: String,
+    pub(crate) name: String,
+    pub(crate) bin_path: String,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -613,6 +628,13 @@ pub(crate) struct AppSettings {
     pub(crate) claude_bin: Option<String>,
     #[serde(default, rename = "codexArgs")]
     pub(crate) codex_args: Option<String>,
+    /// User-managed list of Claude CLI wrapper binaries (named profiles).
+    #[serde(default, rename = "claudeProfiles")]
+    pub(crate) claude_profiles: Vec<ClaudeCommandProfile>,
+    /// Currently selected global profile id. `None` = resolve the `claude`
+    /// binary via PATH lookup (legacy behaviour).
+    #[serde(default, rename = "claudeActiveProfileId")]
+    pub(crate) claude_active_profile_id: Option<String>,
     #[serde(default, rename = "backendMode")]
     pub(crate) backend_mode: BackendMode,
     #[serde(default = "default_remote_backend_host", rename = "remoteBackendHost")]
@@ -1266,6 +1288,8 @@ impl Default for AppSettings {
             codex_bin: None,
             claude_bin: None,
             codex_args: None,
+            claude_profiles: Vec::new(),
+            claude_active_profile_id: None,
             backend_mode: BackendMode::Local,
             remote_backend_host: default_remote_backend_host(),
             remote_backend_token: None,
@@ -1407,7 +1431,8 @@ pub(crate) struct CodexProviderConfig {
 #[cfg(test)]
 mod tests {
     use super::{
-        AppSettings, BackendMode, WorkspaceEntry, WorkspaceGroup, WorkspaceKind, WorkspaceSettings,
+        AppSettings, BackendMode, ClaudeCommandProfile, WorkspaceEntry, WorkspaceGroup,
+        WorkspaceKind, WorkspaceSettings,
     };
 
     #[test]
@@ -1582,5 +1607,50 @@ mod tests {
         assert!(settings.sort_order.is_none());
         assert!(settings.group_id.is_none());
         assert!(settings.git_root.is_none());
+        assert!(settings.claude_profile_override_id.is_none());
+    }
+
+    #[test]
+    fn claude_profiles_default_empty_and_round_trip() {
+        let defaults = AppSettings::default();
+        assert!(defaults.claude_profiles.is_empty());
+        assert!(defaults.claude_active_profile_id.is_none());
+
+        let mut settings = AppSettings::default();
+        settings.claude_profiles = vec![
+            ClaudeCommandProfile {
+                id: "a".to_string(),
+                name: "Official".to_string(),
+                bin_path: "/usr/local/bin/claude".to_string(),
+            },
+            ClaudeCommandProfile {
+                id: "b".to_string(),
+                name: "DeepSeek wrapper".to_string(),
+                bin_path: "/home/user/bin/claude-deepseek".to_string(),
+            },
+        ];
+        settings.claude_active_profile_id = Some("b".to_string());
+
+        let json = serde_json::to_string(&settings).expect("serialize");
+        let decoded: AppSettings = serde_json::from_str(&json).expect("deserialize");
+        assert_eq!(decoded.claude_profiles.len(), 2);
+        assert_eq!(decoded.claude_profiles[1].bin_path, "/home/user/bin/claude-deepseek");
+        assert_eq!(decoded.claude_active_profile_id.as_deref(), Some("b"));
+
+        // JSON uses camelCase keys
+        assert!(json.contains("\"claudeProfiles\""));
+        assert!(json.contains("\"claudeActiveProfileId\":\"b\""));
+        assert!(json.contains("\"binPath\":\"/home/user/bin/claude-deepseek\""));
+    }
+
+    #[test]
+    fn workspace_claude_profile_override_round_trip() {
+        let payload = r#"{"claudeProfileOverrideId":"custom-id"}"#;
+        let settings: WorkspaceSettings =
+            serde_json::from_str(payload).expect("workspace settings deserialize");
+        assert_eq!(settings.claude_profile_override_id.as_deref(), Some("custom-id"));
+
+        let json = serde_json::to_string(&settings).expect("serialize");
+        assert!(json.contains("\"claudeProfileOverrideId\":\"custom-id\""));
     }
 }
