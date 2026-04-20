@@ -15,6 +15,11 @@ jobs:
     name: macos (${{ matrix.arch }})
     runs-on: ${{ matrix.platform }}
     environment: release
+    # Skip the macOS job entirely when Apple signing is not configured in the
+    # `release` environment. Unsigned macOS bundles are not useful for
+    # distribution, and the signing/notarization steps hard-fail on empty
+    # secrets anyway.
+    if: vars.CODESIGN_IDENTITY != ''
     strategy:
       fail-fast: false
       matrix:
@@ -215,8 +220,12 @@ jobs:
           NODE_OPTIONS: "--max-old-space-size=8192"
         run: |
           set -euo pipefail
-          # TAURI_SIGNING_PRIVATE_KEY expects base64-encoded minisign key
-          export TAURI_SIGNING_PRIVATE_KEY="$TAURI_SIGNING_PRIVATE_KEY_B64"
+          # TAURI_SIGNING_PRIVATE_KEY expects base64-encoded minisign key.
+          # If the secret is not configured, build unsigned (no .sig output,
+          # auto-updater won't work for Linux but everything else does).
+          if [ -n "${TAURI_SIGNING_PRIVATE_KEY_B64:-}" ]; then
+            export TAURI_SIGNING_PRIVATE_KEY="$TAURI_SIGNING_PRIVATE_KEY_B64"
+          fi
           npm run tauri -- build --bundles appimage
 
       - name: Upload AppImage
@@ -257,8 +266,12 @@ jobs:
         env:
           NODE_OPTIONS: "--max-old-space-size=8192"
         run: |
-          # TAURI_SIGNING_PRIVATE_KEY expects base64-encoded minisign key
-          $env:TAURI_SIGNING_PRIVATE_KEY = $env:TAURI_SIGNING_PRIVATE_KEY_B64
+          # TAURI_SIGNING_PRIVATE_KEY expects base64-encoded minisign key.
+          # Skip export when the secret is not configured so the build still
+          # produces an NSIS installer (without auto-updater .sig).
+          if ($env:TAURI_SIGNING_PRIVATE_KEY_B64) {
+            $env:TAURI_SIGNING_PRIVATE_KEY = $env:TAURI_SIGNING_PRIVATE_KEY_B64
+          }
           npm run tauri -- build --config src-tauri/tauri.windows.conf.json --bundles nsis
 
       - name: Get version
@@ -320,8 +333,15 @@ jobs:
           PY
           )
 
-          SIGNATURE_AARCH64=$(cat release-artifacts/ccgui_aarch64.app.tar.gz.sig)
-          SIGNATURE_X86_64=$(cat release-artifacts/ccgui_x86_64.app.tar.gz.sig)
+          # macOS signatures are only present when build_macos runs (signing
+          # configured). Treat missing files as empty so latest.json can still
+          # be generated without the darwin-* entries.
+          read_sig() {
+            local path="$1"
+            [ -f "$path" ] && cat "$path" || true
+          }
+          SIGNATURE_AARCH64=$(read_sig release-artifacts/ccgui_aarch64.app.tar.gz.sig)
+          SIGNATURE_X86_64=$(read_sig release-artifacts/ccgui_x86_64.app.tar.gz.sig)
           LAST_TAG=$(git tag --sort=-version:refname \
             | grep -v "^v${VERSION}$" \
             | head -n 1 || true)
@@ -377,16 +397,19 @@ jobs:
           notes = Path("release-artifacts/release-notes.md").read_text().strip()
           artifacts_dir = Path("release-artifacts")
 
-          platforms = {
-            "darwin-aarch64": {
+          platforms = {}
+          sig_aarch64 = "${SIGNATURE_AARCH64}"
+          if sig_aarch64:
+            platforms["darwin-aarch64"] = {
               "url": "https://github.com/zhukunpenglinyutong/desktop-cc-gui/releases/download/v${VERSION}/ccgui_aarch64.app.tar.gz",
-              "signature": "${SIGNATURE_AARCH64}",
-            },
-            "darwin-x86_64": {
-              "url": "https://github.com/zhukunpenglinyutong/desktop-cc-gui/releases/download/v${VERSION}/ccgui_x86_64.app.tar.gz",
-              "signature": "${SIGNATURE_X86_64}",
+              "signature": sig_aarch64,
             }
-          }
+          sig_x86_64 = "${SIGNATURE_X86_64}"
+          if sig_x86_64:
+            platforms["darwin-x86_64"] = {
+              "url": "https://github.com/zhukunpenglinyutong/desktop-cc-gui/releases/download/v${VERSION}/ccgui_x86_64.app.tar.gz",
+              "signature": sig_x86_64,
+            }
 
           # Find Linux AppImages
           appimages = list(artifacts_dir.rglob("*.AppImage.tar.gz"))
